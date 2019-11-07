@@ -22,5 +22,5 @@ for svo_file in "$input_folder/"*".svo"; do
     echo $svo_file
     filename=$(basename -- "$svo_file")
     filename=$(echo "$filename" | cut -f 1 -d '.')
-    "$converter_path" -cpr "$svo_file" -m $compression_mode "${output_folder}/${filename}_h265.svo"
+    "$converter_path" -cpr "$svo_file" -m $compression_mode "${output_folder}/${filename}_h264.svo"
 done
