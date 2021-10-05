@@ -68,7 +68,6 @@ int main(int argc, char **argv) {
     // Specify SVO path parameter
     InitParameters initParameters;
     initParameters.input.setFromSVOFile(svo_input_path.c_str());
-    initParameters.coordinate_units = sl::UNIT::MILLIMETER;
     initParameters.depth_mode = sl::DEPTH_MODE::NONE;
 
     // Open the SVO file specified as a parameter
@@ -86,19 +85,6 @@ int main(int argc, char **argv) {
     cv::Size image_size_cv(width, height);
     sl::Mat left_image;
    
-    // Create video writer
-    cv::VideoWriter* video_writer;
-    if (output_as_video) {
-        int fourcc = cv::VideoWriter::fourcc('M', '4', 'S', '2'); // MPEG-4 part 2 codec
-        int frame_rate = fmax(zed.getCameraInformation().camera_fps, 60); // Minimum write rate in OpenCV is 25
-        video_writer = new cv::VideoWriter(output_path, fourcc, frame_rate, image_size_cv);
-        if (!video_writer->isOpened()) {
-            cout << "OpenCV video writer cannot be opened. Please check the .avi file path and write permissions." << endl;
-            zed.close();
-            return 1;
-        }
-    }
-
     // Start SVO conversion to AVI/SEQUENCE
     cout << "Converting SVO... Use Ctrl-C to interrupt conversion." << endl;
 
@@ -115,11 +101,9 @@ int main(int argc, char **argv) {
             zed.retrieveImage(left_image, VIEW::LEFT_UNRECTIFIED);
             cv::Mat left_image_ocv = slMat2cvMat(left_image);
     
-            // Convert SVO image from RGBA to RGB
-            cv::cvtColor(left_image_ocv, left_image_ocv, cv::COLOR_RGBA2RGB);
+            auto ts = zed.getTimestamp(sl::TIME_REFERENCE::IMAGE).getMicroseconds();
 
-            // Write the RGB image in the video
-            video_writer->write(left_image_ocv);
+            cv::imwrite(output_path + "/" +std::to_string(svo_position) + "_" + std::to_string(ts) + ".png", left_image_ocv);
             
             // Display progress
             ProgressBar((float) (svo_position / (float) nb_frames), 30);
@@ -130,11 +114,6 @@ int main(int argc, char **argv) {
                 exit_app = true;
             }
         }
-    }
-    if (output_as_video) {
-        // Close the video writer
-        video_writer->release();
-        delete video_writer;
     }
 
     zed.close();
