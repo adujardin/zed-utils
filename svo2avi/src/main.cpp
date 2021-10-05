@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
     cv::VideoWriter* video_writer;
     if (output_as_video) {
         int fourcc = cv::VideoWriter::fourcc('M', '4', 'S', '2'); // MPEG-4 part 2 codec
-        int frame_rate = fmax(zed.getCameraInformation().camera_fps, 60); // Minimum write rate in OpenCV is 25
+        int frame_rate = fmax(zed.getCameraInformation().camera_fps, 30); // Minimum write rate in OpenCV is 25
         video_writer = new cv::VideoWriter(output_path, fourcc, frame_rate, image_size_cv);
         if (!video_writer->isOpened()) {
             cout << "OpenCV video writer cannot be opened. Please check the .avi file path and write permissions." << endl;
@@ -112,7 +112,8 @@ int main(int argc, char **argv) {
             svo_position = zed.getSVOPosition();
 
             // Retrieve SVO images
-            zed.retrieveImage(left_image, VIEW::LEFT_UNRECTIFIED);
+            //zed.retrieveImage(left_image, VIEW::LEFT_UNRECTIFIED);
+            zed.retrieveImage(left_image, VIEW::LEFT);
             cv::Mat left_image_ocv = slMat2cvMat(left_image);
     
             // Convert SVO image from RGBA to RGB
