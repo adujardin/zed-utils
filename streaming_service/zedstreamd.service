@@ -1,0 +1,12 @@
+[Unit]
+Description=ZED Streaming
+After=network-online.target
+ 
+[Service]
+Type=simple
+
+ExecStart=/usr/local/bin/zed_stream
+Restart=always
+ 
+[Install]
+WantedBy=multi-user.target
