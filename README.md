@@ -1,1 +1,1 @@
-# zed-svo-utils
+# ZED utils
