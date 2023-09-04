@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
     }
 
     // Get image size
-    Resolution image_size = zed.getCameraInformation().camera_resolution;
+    Resolution image_size = zed.getCameraInformation().camera_configuration.resolution;
     int width = image_size.width;
     int height = image_size.height;
     cv::Size image_size_cv(width, height);
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
     
             auto ts = zed.getTimestamp(sl::TIME_REFERENCE::IMAGE).getMicroseconds();
 
-            cv::imwrite(output_path + "/" +std::to_string(svo_position) + "_" + std::to_string(ts) + ".png", left_image_ocv);
+            cv::imwrite(output_path + "/" +std::to_string(svo_position) + "_" + std::to_string(ts) + ".jpg", left_image_ocv);
             
             // Display progress
             ProgressBar((float) (svo_position / (float) nb_frames), 30);
