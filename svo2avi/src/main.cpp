@@ -21,6 +21,16 @@
 // ZED includes
 #include <sl/Camera.hpp>
 
+#define ZEDONE_SUPPORT 1
+
+#if ZED_SDK_MAJOR_VERSION < 4
+#define ZEDONE_SUPPORT 0
+#endif
+
+#if ZEDONE_SUPPORT
+#include <sl/CameraOne.hpp>
+#endif
+
 // Sample includes
 #include <iostream>
 #include <sstream>
@@ -31,66 +41,20 @@
 using namespace sl;
 using namespace std;
 
-int main(int argc, char **argv) {
- 
-    if (argc != 3 ) {
-        cout << "Usage: \n\n";
-        cout << "    ZED_SVO_Export A B\n\n";
-        cout << "Please use the following parameters from the command line:\n";
-        cout << " A - SVO file path (input) : \"path/to/file.svo\"\n";
-        cout << " B - AVI file path (output) or image sequence folder(output) : \"path/to/output/file.avi\" or \"path/to/output/folder\"\n";
-        cout << " A and B need to end with '/' or '\\'\n\n";
-        cout << "Examples: \n";
-        cout << "  ZED_SVO_Export \"path/to/file.svo\" \"path/to/output/file.avi\" \n";
-        cout << "\nPress [Enter] to continue";
-        cin.ignore();
-        return 1;
-    }
-
-    // Get input parameters
-    string svo_input_path(argv[1]);
-    string output_path(argv[2]);
-    bool output_as_video = true;
-    
-    if (!output_as_video && !directoryExists(output_path)) {
-        cout << "Input directory doesn't exist. Check permissions or create it.\n" << output_path << "\n";
-        return 1;
-    }
-
-    if(!output_as_video && output_path.back() != '/' && output_path.back() != '\\') {
-        cout << "Output folder needs to end with '/' or '\\'.\n" << output_path << "\n";
-        return 1;
-    }
-
-    // Create ZED objects
-    Camera zed;
-
-    // Specify SVO path parameter
-    InitParameters initParameters;
-    initParameters.input.setFromSVOFile(svo_input_path.c_str());
-    initParameters.coordinate_units = sl::UNIT::MILLIMETER;
-    initParameters.depth_mode = sl::DEPTH_MODE::NONE;
-
-    // Open the SVO file specified as a parameter
-    ERROR_CODE err = zed.open(initParameters);
-    if (err != ERROR_CODE::SUCCESS) {
-        cout << toString(err) << endl;
-        zed.close();
-        return 1; // Quit if an error occurred
-    }
-
+template <typename T>
+int convertSVO(T &zed, bool output_as_video, std::string output_path) {
     // Get image size
-    Resolution image_size = zed.getCameraInformation().camera_resolution;
+    Resolution image_size = zed.getCameraInformation().camera_configuration.resolution;
     int width = image_size.width;
     int height = image_size.height;
     cv::Size image_size_cv(width, height);
     sl::Mat left_image;
-   
+
     // Create video writer
     cv::VideoWriter* video_writer;
     if (output_as_video) {
         int fourcc = cv::VideoWriter::fourcc('M', '4', 'S', '2'); // MPEG-4 part 2 codec
-        int frame_rate = fmax(zed.getCameraInformation().camera_fps, 30); // Minimum write rate in OpenCV is 25
+        int frame_rate = fmax(zed.getCameraInformation().camera_configuration.fps, 30); // Minimum write rate in OpenCV is 25
         video_writer = new cv::VideoWriter(output_path, fourcc, frame_rate, image_size_cv);
         if (!video_writer->isOpened()) {
             cout << "OpenCV video writer cannot be opened. Please check the .avi file path and write permissions." << endl;
@@ -115,13 +79,13 @@ int main(int argc, char **argv) {
             //zed.retrieveImage(left_image, VIEW::LEFT_UNRECTIFIED);
             zed.retrieveImage(left_image, VIEW::LEFT);
             cv::Mat left_image_ocv = slMat2cvMat(left_image);
-    
+
             // Convert SVO image from RGBA to RGB
-            cv::cvtColor(left_image_ocv, left_image_ocv, cv::COLOR_RGBA2RGB);
+            cv::cvtColor(left_image_ocv, left_image_ocv, cv::COLOR_BGRA2BGR);
 
             // Write the RGB image in the video
             video_writer->write(left_image_ocv);
-            
+
             // Display progress
             ProgressBar((float) (svo_position / (float) nb_frames), 30);
 
@@ -140,5 +104,88 @@ int main(int argc, char **argv) {
 
     zed.close();
     return 0;
+}
+
+int main(int argc, char **argv) {
+
+    if (argc != 3) {
+        cout << "Usage: \n\n";
+        cout << "    ZED_SVO_Export A B\n\n";
+        cout << "Please use the following parameters from the command line:\n";
+        cout << " A - SVO file path (input) : \"path/to/file.svo\"\n";
+        cout << " B - AVI file path (output) or image sequence folder(output) : \"path/to/output/file.avi\" or \"path/to/output/folder\"\n";
+        cout << " A and B need to end with '/' or '\\'\n\n";
+        cout << "Examples: \n";
+        cout << "  ZED_SVO_Export \"path/to/file.svo\" \"path/to/output/file.avi\" \n";
+        cout << "\nPress [Enter] to continue";
+        cin.ignore();
+        return 1;
+    }
+
+    // Get input parameters
+    string svo_input_path(argv[1]);
+    string output_path(argv[2]);
+    bool output_as_video = true;
+
+    if (!output_as_video && !directoryExists(output_path)) {
+        cout << "Input directory doesn't exist. Check permissions or create it.\n" << output_path << "\n";
+        return 1;
+    }
+
+    if (!output_as_video && output_path.back() != '/' && output_path.back() != '\\') {
+        cout << "Output folder needs to end with '/' or '\\'.\n" << output_path << "\n";
+        return 1;
+    }
+
+    // Create ZED objects
+    Camera zed;
+
+    // Specify SVO path parameter
+    InitParameters initParameters;
+    initParameters.input.setFromSVOFile(svo_input_path.c_str());
+    initParameters.coordinate_units = sl::UNIT::MILLIMETER;
+    initParameters.depth_mode = sl::DEPTH_MODE::NONE;
+    initParameters.enable_image_validity_check = false;
+    initParameters.sdk_verbose = 0;
+
+#if ZEDONE_SUPPORT
+    // check if SVO is stereo
+    ERROR_CODE err = zed.open(initParameters);
+    if (err == sl::ERROR_CODE::MODULE_NOT_COMPATIBLE_WITH_CAMERA) { // ZED One SVO
+        
+        CameraOne zedone;
+        InitParametersOne initParametersOne;
+        initParametersOne.input.setFromSVOFile(svo_input_path.c_str());
+
+        err = zedone.open(initParametersOne);
+
+        if (err != ERROR_CODE::SUCCESS) {
+            cout << toString(err) << endl;
+            zed.close();
+            return 1;
+        }
+        
+        std::cout << zedone.getCameraInformation().camera_model << std::endl;
+
+        return convertSVO(zedone, output_as_video, output_path); // One        
+    } else if (err != ERROR_CODE::SUCCESS) {
+        cout << toString(err) << endl;
+        zed.close();
+        return 1;
+    } else {
+        std::cout << zed.getCameraInformation().camera_model << std::endl;
+        return convertSVO(zed, output_as_video, output_path); // stereo
+    }    
+#else
+    // Open the SVO file specified as a parameter
+    ERROR_CODE err = zed.open(initParameters);
+    if (err != ERROR_CODE::SUCCESS) {
+        cout << toString(err) << endl;
+        zed.close();
+        return 1; // Quit if an error occurred
+    }
+
+    return convertSVO(zed, output_as_video, output_path);
+#endif
 }
 
